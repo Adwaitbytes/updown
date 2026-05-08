@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ts:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            packages/shared/package-lock.json
+            packages/bot/package-lock.json
+            packages/miniapp/package-lock.json
+            packages/settler/package-lock.json
+            packages/indexer-follower/package-lock.json
+            packages/web/package-lock.json
+
+      - name: Install shared
+        working-directory: packages/shared
+        run: npm ci --no-audit --no-fund
+
+      - name: Build shared
+        working-directory: packages/shared
+        run: npm run build
+
+      - name: Install + typecheck bot
+        working-directory: packages/bot
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: Install + typecheck miniapp
+        working-directory: packages/miniapp
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: Install + typecheck settler
+        working-directory: packages/settler
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: Install + typecheck indexer-follower
+        working-directory: packages/indexer-follower
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: Install web
+        working-directory: packages/web
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint web
+        working-directory: packages/web
+        run: npm run lint
+
+      - name: Build web
+        working-directory: packages/web
+        run: npm run build
+
+      - name: Build miniapp
+        working-directory: packages/miniapp
+        run: npm run build
+
+  move:
+    name: Move
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Sui via official binary
+        run: |
+          mkdir -p $HOME/.local/bin
+          curl -L -o /tmp/sui.tar.gz "https://github.com/MystenLabs/sui/releases/download/testnet-v1.71.1/sui-testnet-v1.71.1-ubuntu-x86_64.tgz"
+          tar -xzf /tmp/sui.tar.gz -C $HOME/.local/bin
+          chmod +x $HOME/.local/bin/sui
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - run: sui --version
+      - run: sui move build
+        working-directory: move
+      - run: sui move test
+        working-directory: move
