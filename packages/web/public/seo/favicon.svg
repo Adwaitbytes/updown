@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Voxa">
+  <rect width="32" height="32" rx="8" fill="#0A0A0A"/>
+  <path d="M2.5 12 L16 28.5 L29.5 12" stroke="#FFD66B" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.28"/>
+  <path d="M5 10 L16 24.5 L27 10" stroke="#FFD66B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.55"/>
+  <path d="M7.5 8 L16 20.5 L24.5 8" stroke="#FFD66B" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
