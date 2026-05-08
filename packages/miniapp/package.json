@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mysten/enoki": "^0.7.0",
+    "@mysten/enoki": "^1.0.7",
     "@mysten/sui": "^1.40.0",
     "next": "16.2.1",
     "pg": "^8.13.1",
