@@ -17,7 +17,7 @@
   "dependencies": {
     "@grammyjs/conversations": "^2.1.0",
     "@grammyjs/transformer-throttler": "^1.2.1",
-    "@mysten/bcs": "^1.6.4",
+    "@mysten/bcs": "^2.0.5",
     "@mysten/sui": "^1.40.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
