@@ -12,7 +12,7 @@
 
   --color-fg: rgb(0, 15, 29);
   --color-fg-muted: rgba(0, 15, 29, 0.66);
-  --color-fg-dim: rgba(0, 15, 29, 0.42);
+  --color-fg-dim: rgba(0, 15, 29, 0.55);
   --color-fg-on-ink: rgb(247, 247, 247);
 
   --color-border: rgba(0, 15, 29, 0.08);
@@ -88,4 +88,13 @@ html, body { overflow-x: hidden; }
 @keyframes marquee {
   from { transform: translate3d(0, 0, 0); }
   to   { transform: translate3d(-50%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
