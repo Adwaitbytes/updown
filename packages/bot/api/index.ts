@@ -14,7 +14,7 @@ export default async function handler(
 ): Promise<void> {
   if (!appPromise) appPromise = buildApp();
   const app = await appPromise;
-  // Express apps are themselves (req, res) handlers.
-  // @ts-expect-error Express types are slightly different from node http types but compatible at runtime.
-  app(req, res);
+  // Express apps are themselves (req, res) handlers; types differ slightly
+  // from node http types but are compatible at runtime.
+  (app as unknown as (req: IncomingMessage, res: ServerResponse) => void)(req, res);
 }

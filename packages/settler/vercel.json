@@ -1,4 +1,6 @@
 {
+  "buildCommand": "echo 'serverless functions are auto-bundled'",
+  "outputDirectory": ".",
   "crons": [
     {
       "path": "/api/cron",
