@@ -1,11 +1,19 @@
 import pg from "pg";
-import { runMigrations as runSharedMigrations } from "@updown/shared/migrate";
+import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { getEnv } from "./env.js";
 import { logger } from "./log.js";
 
 const { Pool } = pg;
 
 let pool: pg.Pool | undefined;
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+async function loadInitSql(): Promise<string> {
+  return readFile(resolve(HERE, "migrations", "001_init.sql"), "utf8");
+}
 
 export function getPool(): pg.Pool {
   if (pool) return pool;
@@ -22,8 +30,20 @@ export function getPool(): pg.Pool {
 }
 
 export async function runMigrations(): Promise<void> {
-  await runSharedMigrations(getPool());
-  logger.info("db migrations applied");
+  const p = getPool();
+  const client = await p.connect();
+  try {
+    await client.query("BEGIN");
+    const sql = await loadInitSql();
+    await client.query(sql);
+    await client.query("COMMIT");
+    logger.info("db migrations applied");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export interface UserRow {

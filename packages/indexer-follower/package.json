@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@mysten/sui": "^1.40.0",
-    "@updown/shared": "file:../shared",
     "dotenv": "^16.4.7",
     "p-limit": "^6.1.0",
     "pg": "^8.13.1",

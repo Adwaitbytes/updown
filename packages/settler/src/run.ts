@@ -1,5 +1,5 @@
 import { Transaction } from "@mysten/sui/transactions";
-import { runMigrations } from "@updown/shared/migrate";
+import { runMigrations } from "./migrate.js";
 
 import { getPool, query, withTx, type OpenPositionRow } from "./db.js";
 import { loadEnv } from "./env.js";

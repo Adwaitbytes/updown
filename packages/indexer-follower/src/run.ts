@@ -1,5 +1,5 @@
 import { SuiClient } from "@mysten/sui/client";
-import { runMigrations } from "@updown/shared/migrate";
+import { runMigrations } from "./migrate.js";
 import pLimit from "p-limit";
 
 import {

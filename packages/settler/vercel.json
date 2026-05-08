@@ -2,7 +2,13 @@
   "crons": [
     {
       "path": "/api/cron",
-      "schedule": "*/1 * * * *"
+      "schedule": "0 0 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/cron.ts": {
+      "maxDuration": 60,
+      "includeFiles": "src/migrations/**"
+    }
+  }
 }
