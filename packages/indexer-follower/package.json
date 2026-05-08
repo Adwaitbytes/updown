@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mysten/sui": "^1.40.0",
+    "@mysten/sui": "^2.16.2",
     "dotenv": "^16.4.7",
     "p-limit": "^6.1.0",
     "pg": "^8.13.1",
