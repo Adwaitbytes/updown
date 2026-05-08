@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+.next/
+**/.next/
+dist/
+build/
+**/dist/
+**/build/
+*.tsbuildinfo
+
+# Move build
+move/build/
+
+# Env / secrets
+.env
+.env.local
+.env.*
+**/.env
+!.env.example
+!**/.env.example
+
+# Logs
+*.log
+.turbo/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
