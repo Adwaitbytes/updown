@@ -1,0 +1,33 @@
+{
+  "name": "@updown/indexer-follower",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Up/Down Sui event indexer — tails Predict + UpDown events into Postgres",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "dist/run.js",
+  "scripts": {
+    "dev": "tsx watch src/run.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/run.js",
+    "poll": "tsx src/poller.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mysten/sui": "^1.40.0",
+    "@updown/shared": "file:../shared",
+    "dotenv": "^16.4.7",
+    "p-limit": "^6.1.0",
+    "pg": "^8.13.1",
+    "pino": "^9.5.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
