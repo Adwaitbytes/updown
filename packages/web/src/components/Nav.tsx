@@ -15,7 +15,7 @@ const NAV_LINKS: readonly NavLink[] = [
   { label: "FAQ", href: "#faq" },
 ] as const;
 
-const TELEGRAM_URL = "https://t.me/UpDownBetaBot";
+const TELEGRAM_URL = "https://t.me/UpDownBet_bot";
 const SCROLL_THRESHOLD = 12;
 
 function Wordmark(): React.JSX.Element {

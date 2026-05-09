@@ -205,7 +205,9 @@ export function HallOfFame(): JSX.Element {
           Subscribe to the public channel{" "}
           <span aria-hidden="true">→</span>{" "}
           <a
-            href="#"
+            href="https://t.me/UpDownHallOfFame"
+            target="_blank"
+            rel="noreferrer"
             className="text-[var(--color-fg)] underline decoration-[var(--color-border-strong)] underline-offset-4 transition-colors hover:decoration-[var(--color-fg)]"
           >
             @UpDownHallOfFame

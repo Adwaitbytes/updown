@@ -14,9 +14,9 @@ const COLUMNS: readonly FooterColumn[] = [
   {
     heading: "Product",
     links: [
-      { label: "Telegram bot", href: "https://t.me/UpDownBetaBot" },
-      { label: "Mini App", href: "https://t.me/UpDownBetaBot/app" },
-      { label: "GitHub", href: "https://github.com/updown" },
+      { label: "Telegram bot", href: "https://t.me/UpDownBet_bot" },
+      { label: "Mini App", href: "https://t.me/UpDownBet_bot/app" },
+      { label: "GitHub", href: "https://github.com/Adwaitbytes/updown" },
       { label: "Status", href: "/status" },
     ],
   },
@@ -24,9 +24,9 @@ const COLUMNS: readonly FooterColumn[] = [
     heading: "Resources",
     links: [
       { label: "Docs", href: "/docs" },
-      { label: "Move package on Sui", href: "https://suiscan.xyz" },
+      { label: "Move package on Sui", href: "https://suiscan.xyz/testnet/object/0x54b1ab9644a5d250d3009d4073a51d8484f9a388ca10eaa9293b5283dbfa5290" },
       { label: "DeepBook Predict", href: "https://deepbook.tech" },
-      { label: "Hall of Fame channel", href: "https://t.me/updown_hof" },
+      { label: "Hall of Fame channel", href: "https://t.me/UpDownHallOfFame" },
     ],
   },
   {
@@ -49,7 +49,7 @@ type SocialLink = {
 const SOCIALS: readonly SocialLink[] = [
   {
     label: "X",
-    href: "https://x.com/updown",
+    href: "https://x.com/UpDownBet",
     icon: (
       <svg
         width="16"
@@ -64,7 +64,7 @@ const SOCIALS: readonly SocialLink[] = [
   },
   {
     label: "Telegram",
-    href: "https://t.me/UpDownBetaBot",
+    href: "https://t.me/UpDownBet_bot",
     icon: (
       <svg
         width="16"
@@ -79,7 +79,7 @@ const SOCIALS: readonly SocialLink[] = [
   },
   {
     label: "GitHub",
-    href: "https://github.com/updown",
+    href: "https://github.com/Adwaitbytes/updown",
     icon: (
       <svg
         width="16"
@@ -93,23 +93,8 @@ const SOCIALS: readonly SocialLink[] = [
     ),
   },
   {
-    label: "Discord",
-    href: "https://discord.gg/updown",
-    icon: (
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path d="M13.55 2.93A12.6 12.6 0 0 0 10.4 2l-.16.18c1.16.28 1.74.69 2.34 1.18a8 8 0 0 0-7.06-.27l-.41.27a7.55 7.55 0 0 1 2.5-1.18L7.5 2c-1.06.07-2.18.41-3.05.93C2.83 4.39 2.07 7.97 2.18 11.5c.96 1.27 2.36 2.07 3.51 2.16.21-.27.4-.55.55-.84-.66-.27-1.27-.66-1.81-1.16l.41-.27c1.81 1.16 3.99 1.16 5.79 0l.41.27c-.55.5-1.16.89-1.81 1.16.16.29.34.57.55.84 1.16-.09 2.55-.89 3.51-2.16.27-3.94-.41-7.5-1.74-8.57zM6.16 9.65c-.66 0-1.21-.66-1.21-1.42 0-.76.55-1.42 1.21-1.42.66 0 1.21.66 1.21 1.42 0 .76-.55 1.42-1.21 1.42zm3.68 0c-.66 0-1.21-.66-1.21-1.42 0-.76.55-1.42 1.21-1.42.66 0 1.21.66 1.21 1.42 0 .76-.55 1.42-1.21 1.42z" />
-      </svg>
-    ),
-  },
-  {
     label: "Sui Explorer",
-    href: "https://suiscan.xyz",
+    href: "https://suiscan.xyz/testnet/object/0x54b1ab9644a5d250d3009d4073a51d8484f9a388ca10eaa9293b5283dbfa5290",
     icon: (
       <svg
         width="16"

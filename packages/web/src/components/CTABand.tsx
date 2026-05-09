@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 
-const TELEGRAM_URL = "https://t.me/UpDownBetaBot";
-const BOT_USERNAME = "@UpDownBetaBot";
+const TELEGRAM_URL = "https://t.me/UpDownBet_bot";
+const BOT_USERNAME = "@UpDownBet_bot";
 
 export function CTABand(): JSX.Element {
   return (

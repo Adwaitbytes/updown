@@ -1,7 +1,7 @@
 import * as React from "react";
 
-const TELEGRAM_URL = "https://t.me/UpDownBetaBot";
-const GITHUB_URL = "https://github.com/updown";
+const TELEGRAM_URL = "https://t.me/UpDownBet_bot";
+const GITHUB_URL = "https://github.com/Adwaitbytes/updown";
 
 function ArrowRightSmall(): React.JSX.Element {
   return (
@@ -193,13 +193,13 @@ export function Hero(): React.JSX.Element {
           </div>
 
           {/* Display headline */}
-          <h1 className="text-display text-[var(--color-fg)]">
-            Bet on{" "}
-            <span style={{ color: "var(--color-up)" }}>BTC up</span>
-            <br />
+          <h1 className="text-display text-[var(--color-fg)] tracking-tight" style={{ wordBreak: "keep-all" }}>
+            BTC <span style={{ color: "var(--color-up)" }}>up</span>{" "}
             or <span style={{ color: "var(--color-down)" }}>down</span>.
             <br />
-            15 minutes. On-chain.
+            15&nbsp;minutes.
+            <br />
+            <span className="text-[var(--color-spark)]">On-chain.</span>
           </h1>
 
           {/* Subtitle */}
