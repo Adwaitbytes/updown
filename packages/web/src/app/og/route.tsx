@@ -1,43 +1,46 @@
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";
+// Edge runtime + Geist Sans bundling fails silently with a 0-byte image in
+// Vercel's prod edge. Use nodejs runtime — adds ~100ms but produces a real PNG.
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   return new ImageResponse(
     (
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          width: "100%",
-          height: "100%",
+          width: "1200px",
+          height: "630px",
           background: "#f7f7f7",
-          padding: 80,
-          fontFamily: "sans-serif",
+          padding: "80px",
         }}
       >
         <div
           style={{
             display: "flex",
-            fontFamily: "monospace",
             fontSize: 28,
             color: "#26b863",
           }}
         >
-          LIVE ON SUI · DEEPBOOK PREDICT
+          LIVE ON SUI . DEEPBOOK PREDICT
         </div>
         <div
           style={{
             display: "flex",
-            marginTop: 40,
+            marginTop: "40px",
             fontSize: 110,
             color: "#000f1d",
           }}
         >
-          Bet on BTC <span style={{ color: "#26b863", marginLeft: 24 }}>up</span>
+          BTC{" "}
+          <span style={{ color: "#26b863", marginLeft: "24px" }}>up</span>
         </div>
         <div style={{ display: "flex", fontSize: 110, color: "#000f1d" }}>
-          or <span style={{ color: "#e84658", marginLeft: 24 }}>down</span>.
+          or{" "}
+          <span style={{ color: "#e84658", marginLeft: "24px" }}>down</span>.
         </div>
         <div style={{ display: "flex", fontSize: 110, color: "#000f1d" }}>
           15 minutes. On-chain.
@@ -45,12 +48,12 @@ export async function GET() {
         <div
           style={{
             display: "flex",
-            marginTop: 60,
+            marginTop: "60px",
             fontSize: 30,
-            color: "#000f1d",
+            color: "#46556a",
           }}
         >
-          Telegram-native binary options · Self-custodial · DeepBook Predict on Sui
+          Telegram-native binary options. Self-custodial. DeepBook Predict on Sui.
         </div>
       </div>
     ),
