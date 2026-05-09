@@ -9,39 +9,40 @@ export interface BuildOnboardTxArgs {
   delegatedPubkeyBase64: string;
   /** Daily cap in micros (e.g. 100_000_000 for 100 dUSDC at 6 decimals) */
   dailyCapMicros: bigint;
-  /** Amount of dUSDC starter to mint, in micros (default 25 dUSDC) */
-  starterAmountMicros?: bigint;
 }
 
 /**
  * Build a single PTB that:
- *   1. Calls predict::create_manager → PredictManager
- *   2. Mints `starterAmountMicros` dUSDC from the dev TreasuryCap
- *   3. Calls updown::account::new<DUSDC>(predict_manager, delegated_pubkey, daily_cap, coin)
+ *   1. Calls `predict::create_manager` → returns the new PredictManager id
+ *   2. Mints a zero-valued `Coin<DUSDC>` with `0x2::coin::zero<DUSDC>` to seed
+ *      the BettingAccount (we cannot mint dUSDC starter — the TreasuryCap is
+ *      held by MystenLabs; users acquire dUSDC through the testnet faucet
+ *      instead). `account::new` only requires *a* `Coin<Q>` value, not a
+ *      non-empty one.
+ *   3. Calls `updown::account::new<DUSDC>(predict_manager, delegated_pubkey,
+ *      daily_cap, coin, &Clock, ctx)` which shares the BettingAccount and
+ *      transfers the OwnerCap back to `sender`.
  *
- * The transaction is intended to be sponsored by Enoki — the sender pays no gas.
+ * Sponsored externally by Enoki.
  */
 export function buildOnboardTx(args: BuildOnboardTxArgs): Transaction {
   const env = readPublicEnv();
   const tx = new Transaction();
   tx.setSender(args.sender);
 
-  const starter = args.starterAmountMicros ?? 25_000_000n;
-
-  // 1. Create a fresh PredictManager for this user.
+  // 1. Create a fresh PredictManager for this user (returns ID).
   const predictManager = tx.moveCall({
     target: `${env.NEXT_PUBLIC_PREDICT_PACKAGE_ID}::predict::create_manager`,
     arguments: [],
   });
 
-  // 2. Mint dUSDC starter from the dev TreasuryCap (testnet only).
+  // 2. Zero-valued dUSDC coin: replaces the prior `0x2::coin::mint` which
+  //    required a TreasuryCap we don't own. Move-side `account::new` accepts
+  //    any `Coin<Q>` (including empty) — see move/sources/account.move.
   const starterCoin = tx.moveCall({
-    target: `0x2::coin::mint`,
+    target: `0x2::coin::zero`,
     typeArguments: [env.NEXT_PUBLIC_DUSDC_TYPE],
-    arguments: [
-      tx.object(env.NEXT_PUBLIC_DUSDC_TREASURY_CAP_ID),
-      tx.pure.u64(starter),
-    ],
+    arguments: [],
   });
 
   // 3. Decode the delegated pubkey base64 into a vector<u8> arg.

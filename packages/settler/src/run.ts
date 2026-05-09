@@ -117,13 +117,45 @@ async function settleGroup(
 ): Promise<SettlementOutcome[]> {
   const tx = new Transaction();
   for (const pos of group) {
+    if (!pos.oracle_id) {
+      log.warn(
+        { positionId: pos.id, managerId },
+        "skipping redeem: position is missing oracle_id (cannot reconstruct MarketKey)",
+      );
+      continue;
+    }
+    if (!pos.strike_micros) {
+      log.warn(
+        { positionId: pos.id },
+        "skipping redeem: missing strike_micros",
+      );
+      continue;
+    }
+    // The bot's place_bet writes the 1e9-scaled strike into `strike_micros`
+    // (yes, the column name predates the rename) so we can pipe it straight
+    // into market_key::{up,down} which expects u64.
+    const strikeScaled = BigInt(pos.strike_micros);
+    const expiryMs = BigInt(pos.expiry_ms);
+
+    const marketKey = tx.moveCall({
+      target: `${env.PREDICT_PACKAGE_ID}::market_key::${pos.is_up ? "up" : "down"}`,
+      arguments: [
+        tx.pure.id(pos.oracle_id),
+        tx.pure.u64(expiryMs),
+        tx.pure.u64(strikeScaled),
+      ],
+    });
+
     tx.moveCall({
       target: `${env.PREDICT_PACKAGE_ID}::predict::redeem_permissionless`,
       typeArguments: [env.DUSDC_TYPE],
       arguments: [
-        tx.object(env.PREDICT_OBJ_ID),
-        tx.object(managerId),
-        tx.pure.string(pos.market_key),
+        tx.object(env.PREDICT_OBJ_ID), // &mut Predict<DUSDC>
+        tx.object(managerId), // &mut PredictManager<DUSDC>
+        tx.object(pos.oracle_id), // &Oracle<DUSDC>
+        marketKey, // MarketKey
+        tx.pure.u64(BigInt(pos.stake_micros)), // quantity
+        tx.object("0x6"), // &Clock
       ],
     });
   }

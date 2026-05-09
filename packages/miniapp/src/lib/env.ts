@@ -8,7 +8,9 @@ const PublicSchema = z.object({
   NEXT_PUBLIC_PREDICT_PACKAGE_ID: z.string().min(1),
   NEXT_PUBLIC_PREDICT_OBJ_ID: z.string().min(1),
   NEXT_PUBLIC_DUSDC_TYPE: z.string().min(1),
-  NEXT_PUBLIC_DUSDC_TREASURY_CAP_ID: z.string().min(1),
+  // Optional: kept for future faucet / redistributor flows. The onboarding
+  // PTB no longer mints dUSDC (TreasuryCap held by MystenLabs).
+  NEXT_PUBLIC_DUSDC_TREASURY_CAP_ID: z.string().min(1).optional(),
   NEXT_PUBLIC_UPDOWN_PACKAGE_ID: z.string().min(1),
   NEXT_PUBLIC_BOT_WEBHOOK_URL: z.string().url(),
 });

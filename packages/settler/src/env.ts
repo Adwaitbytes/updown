@@ -9,6 +9,7 @@ const Schema = z.object({
   PREDICT_OBJ_ID: z.string().min(1),
   DUSDC_TYPE: z.string().min(1),
   UPDOWN_PACKAGE_ID: z.string().min(1),
+  STREAK_MINT_CAP_ID: z.string().min(1),
   SETTLER_SIGNER_PRIVKEY: z.string().min(1),
   ENOKI_API_KEY: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
