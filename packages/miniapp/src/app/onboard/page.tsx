@@ -1,6 +1,6 @@
 "use client";
 
-import { SuiClient } from "@mysten/sui/client";
+import { SuiClient, type SuiObjectChange } from "@mysten/sui/client";
 import { useCallback, useEffect, useState } from "react";
 
 import { buildOnboardTx } from "@/lib/ptb";
@@ -136,6 +136,40 @@ export default function OnboardPage(): React.ReactElement {
         signature,
       });
 
+      // Wait for the tx to be indexed and pull objectChanges so we can
+      // identify the freshly-created BettingAccount, OwnerCap, and
+      // PredictManager object ids by Move type. The bot needs all three
+      // to operate the user's account on subsequent /up /down commands.
+      const txResp = await sui.waitForTransaction({
+        digest: exec.digest,
+        options: { showObjectChanges: true },
+      });
+      const objectChanges: SuiObjectChange[] = txResp.objectChanges ?? [];
+
+      const updownPkg = requireEnv("NEXT_PUBLIC_UPDOWN_PACKAGE_ID");
+      const predictPkg = requireEnv("NEXT_PUBLIC_PREDICT_PACKAGE_ID");
+
+      // Match by Move struct type. Note BettingAccount<Q> is generic so we
+      // match on the struct prefix and trust the package id to disambiguate.
+      const accountId = findCreatedObjectId(
+        objectChanges,
+        (t) => t.startsWith(`${updownPkg}::account::BettingAccount<`),
+      );
+      const ownerCapId = findCreatedObjectId(
+        objectChanges,
+        (t) => t === `${updownPkg}::account::OwnerCap`,
+      );
+      const predictManagerId = findCreatedObjectId(
+        objectChanges,
+        (t) => t === `${predictPkg}::predict::PredictManager`,
+      );
+
+      if (!accountId) throw new Error("BettingAccount not found in tx effects");
+      if (!ownerCapId) throw new Error("OwnerCap not found in tx effects");
+      if (!predictManagerId) {
+        throw new Error("PredictManager not found in tx effects");
+      }
+
       // Forward the new IDs to the bot webhook. The session token rides in
       // the body (not the URL) so it's not captured in proxy logs.
       const post = await fetch(
@@ -145,9 +179,12 @@ export default function OnboardPage(): React.ReactElement {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             token,
-            telegram_init_data: initData,
-            sui_address: suiAddress,
-            digest: exec.digest,
+            initData,
+            suiAddress,
+            accountId,
+            ownerCapId,
+            predictManagerId,
+            delegatedPubkey: dk.delegatedPubkeyBase64,
           }),
         },
       );
@@ -280,4 +317,26 @@ function fromBase64(b64: string): Uint8Array {
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
+}
+
+/**
+ * Walk objectChanges from a transaction and return the objectId of the first
+ * `created` change whose `objectType` matches the given predicate. Returns
+ * null if no match is found.
+ *
+ * Move struct types we expect during onboarding (with `${PKG}` substituted):
+ *   - `${NEXT_PUBLIC_UPDOWN_PACKAGE_ID}::account::BettingAccount<${DUSDC_TYPE}>`
+ *   - `${NEXT_PUBLIC_UPDOWN_PACKAGE_ID}::account::OwnerCap`
+ *   - `${NEXT_PUBLIC_PREDICT_PACKAGE_ID}::predict::PredictManager`
+ */
+function findCreatedObjectId(
+  changes: readonly SuiObjectChange[],
+  matchType: (objectType: string) => boolean,
+): string | null {
+  for (const c of changes) {
+    if (c.type === "created" && matchType(c.objectType)) {
+      return c.objectId;
+    }
+  }
+  return null;
 }

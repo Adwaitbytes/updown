@@ -49,6 +49,8 @@ export function buildOnboardTx(args: BuildOnboardTxArgs): Transaction {
 
   // 4. Create the BettingAccount; transfer-back of OwnerCap and the new
   //    PredictManager is handled inside `updown::account::new`.
+  //    The Move signature requires `&Clock` as the second-to-last argument
+  //    (before `ctx`); pass the well-known shared Clock at 0x6.
   tx.moveCall({
     target: `${env.NEXT_PUBLIC_UPDOWN_PACKAGE_ID}::account::new`,
     typeArguments: [env.NEXT_PUBLIC_DUSDC_TYPE],
@@ -57,6 +59,7 @@ export function buildOnboardTx(args: BuildOnboardTxArgs): Transaction {
       tx.pure.vector("u8", Array.from(pubkeyBytes)),
       tx.pure.u64(args.dailyCapMicros),
       starterCoin,
+      tx.object("0x6"),
     ],
   });
 
@@ -76,6 +79,7 @@ export function buildRevokeTx(args: BuildRevokeTxArgs): Transaction {
 
   tx.moveCall({
     target: `${env.NEXT_PUBLIC_UPDOWN_PACKAGE_ID}::account::revoke`,
+    typeArguments: [env.NEXT_PUBLIC_DUSDC_TYPE],
     arguments: [
       tx.object(args.ownerCapId),
       tx.object(args.bettingAccountId),

@@ -24,7 +24,7 @@ export function buildServer(bot: Bot<BotContext>): express.Express {
 
   // Telegram webhook with HMAC secret-token verification.
   const callback = webhookCallback(bot, "express");
-  app.post("/webhook/:secret", (req: Request, res: Response, next) => {
+  app.post("/webhook/:secret", (req: Request, res: Response) => {
     const provided = req.header("x-telegram-bot-api-secret-token");
     if (!verifyWebhookSecret(env.WEBHOOK_SECRET, provided)) {
       logger.warn("rejected webhook: bad secret token");
@@ -35,7 +35,15 @@ export function buildServer(bot: Bot<BotContext>): express.Express {
       res.status(404).send("not found");
       return;
     }
-    Promise.resolve(callback(req, res)).catch(next);
+    // CRITICAL: never propagate handler errors to Express's default 500.
+    // Telegram interprets HTTP 500 as "retry the update" and will pound
+    // the bot in a tight loop. Always 200 the webhook even on internal
+    // failure — the user already saw the failure path; we just need
+    // Telegram to stop redelivering the same update.
+    Promise.resolve(callback(req, res)).catch((err: unknown) => {
+      logger.error({ err }, "webhook handler error");
+      if (!res.headersSent) res.status(200).end();
+    });
   });
 
   // Mini App posts back after onboarding completes.
