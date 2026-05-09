@@ -1,28 +1,15 @@
 {
-  "name": "ai-website-clone-template",
+  "name": "@updown/web",
   "version": "0.3.1",
   "private": true,
-  "description": "Clone any website into a clean, modern Next.js codebase using AI coding agents",
-  "author": "JCodesMore",
+  "description": "Up/Down — Telegram-native binary options on Sui via DeepBook Predict (marketing site)",
+  "author": "Adwait Bytes <adwaitkeshari289@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JCodesMore/ai-website-cloner-template.git"
+    "url": "https://github.com/Adwaitbytes/updown.git"
   },
-  "homepage": "https://github.com/JCodesMore/ai-website-cloner-template",
-  "bugs": {
-    "url": "https://github.com/JCodesMore/ai-website-cloner-template/issues"
-  },
-  "keywords": [
-    "claude-code",
-    "website-clone",
-    "reverse-engineering",
-    "nextjs",
-    "ai",
-    "template",
-    "tailwindcss",
-    "shadcn-ui"
-  ],
+  "homepage": "https://updown-web.vercel.app",
   "engines": {
     "node": ">=24"
   },

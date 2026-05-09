@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type JSX } from "react";
 
-type EndpointId = "web" | "miniapp" | "bot" | "telegram";
+type EndpointId = "web" | "miniapp" | "bot";
 type Status = "checking" | "up" | "down";
 
 type Endpoint = {
@@ -29,13 +29,7 @@ const ENDPOINTS: readonly Endpoint[] = [
     id: "bot",
     label: "Bot webhook",
     tag: "BOT · vercel",
-    url: "https://updown-30zyt1mow-adwaitbytes-projects.vercel.app/healthz",
-  },
-  {
-    id: "telegram",
-    label: "Telegram API",
-    tag: "TELEGRAM · external",
-    url: "https://api.telegram.org/bot/getMe",
+    url: "https://updown-bot.vercel.app/healthz",
   },
 ] as const;
 
@@ -248,7 +242,7 @@ export function LiveStatus(): JSX.Element {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ENDPOINTS.map((endpoint) => {
             const entry = statuses[endpoint.id];
             const color = statusColor(entry.status);

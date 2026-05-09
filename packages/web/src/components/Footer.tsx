@@ -17,25 +17,14 @@ const COLUMNS: readonly FooterColumn[] = [
       { label: "Telegram bot", href: "https://t.me/UpDownBet_bot" },
       { label: "Mini App", href: "https://t.me/UpDownBet_bot/app" },
       { label: "GitHub", href: "https://github.com/Adwaitbytes/updown" },
-      { label: "Status", href: "/status" },
     ],
   },
   {
     heading: "Resources",
     links: [
-      { label: "Docs", href: "/docs" },
       { label: "Move package on Sui", href: "https://suiscan.xyz/testnet/object/0x54b1ab9644a5d250d3009d4073a51d8484f9a388ca10eaa9293b5283dbfa5290" },
-      { label: "DeepBook Predict", href: "https://deepbook.tech" },
+      { label: "DeepBook Predict", href: "https://blog.sui.io/introducing-deepbook-predict/" },
       { label: "Hall of Fame channel", href: "https://t.me/UpDownHallOfFame" },
-    ],
-  },
-  {
-    heading: "Company",
-    links: [
-      { label: "About", href: "/about" },
-      { label: "Press", href: "/press" },
-      { label: "Contact", href: "/contact" },
-      { label: "Brand", href: "/brand" },
     ],
   },
 ] as const;
@@ -114,7 +103,7 @@ export function Footer(): JSX.Element {
     <footer className="bg-[var(--color-bg-ink)] text-[var(--color-fg-on-ink)]">
       <div className="container-page py-16">
         {/* Row 1: brand + columns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {/* Brand block */}
           <div className="flex flex-col gap-4">
             <span className="text-2xl font-medium tracking-tight">

@@ -9,8 +9,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://updown-miniapp.vercel.app"),
   title: "Up/Down — Onboard",
-  description: "One-time zkLogin onboarding for the Up/Down Telegram bot",
+  description: "Sign in with Google to onboard. Self-custodial trading on Sui via DeepBook Predict.",
+  robots: { index: false, follow: false },
+  openGraph: {
+    title: "Up/Down — Onboard",
+    description: "Self-custodial onboarding for Up/Down on Sui.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

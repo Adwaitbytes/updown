@@ -13,7 +13,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://updown.bet"),
+  metadataBase: new URL("https://updown-web.vercel.app"),
   title: "Up/Down — Bet on BTC. 15 minutes. Settled on Sui.",
   description:
     "Telegram bot for sub-hour BTC up/down predictions. Self-custodial via zkLogin. Settled on-chain via DeepBook Predict on Sui.",

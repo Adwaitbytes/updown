@@ -50,25 +50,6 @@ function formatStrike(strike: number): string {
   return `$${strike.toLocaleString("en-US")}`;
 }
 
-function TxnArrowIcon(): JSX.Element {
-  return (
-    <svg
-      aria-hidden="true"
-      width="10"
-      height="10"
-      viewBox="0 0 10 10"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M2.5 7.5L7.5 2.5" />
-      <path d="M3.5 2.5H7.5V6.5" />
-    </svg>
-  );
-}
-
 function Dot(): JSX.Element {
   return (
     <span
@@ -141,18 +122,12 @@ function PnlCard({ win }: { win: Win }): JSX.Element {
         <span>{win.stake} dUSDC</span>
       </div>
 
-      {/* Bottom row: timestamp + tx link */}
+      {/* Bottom row: timestamp + beta label */}
       <div className="mt-1 flex items-center justify-between border-t border-[var(--color-border)] pt-3">
         <span className="font-mono text-xs text-[var(--color-fg-dim)]">
           {win.ago}
         </span>
-        <a
-          href="#"
-          className="inline-flex items-center gap-1 font-mono text-xs text-[var(--color-fg-muted)] underline decoration-[var(--color-border-strong)] underline-offset-4 transition-colors hover:text-[var(--color-fg)]"
-        >
-          tx
-          <TxnArrowIcon />
-        </a>
+        <span className="font-mono text-xs text-[var(--color-fg-dim)]">beta · sample data</span>
       </div>
     </article>
   );
@@ -174,8 +149,8 @@ export function HallOfFame(): JSX.Element {
           </h2>
           <p className="max-w-xl text-lg text-[var(--color-fg-muted)]">
             Auto-posted to a public Telegram channel every time someone clears
-            $100+. Click any txn link to verify settlement on the Sui block
-            explorer.
+            $100+. (The cards below are sample data for the beta — real wins
+            will appear once mainnet launches.)
           </p>
         </div>
       </div>
