@@ -4,6 +4,7 @@ import { z } from "zod";
 const Schema = z.object({
   DATABASE_URL: z.string().url(),
   SUI_RPC_URL: z.string().url(),
+  PREDICT_INDEXER_URL: z.string().url(),
   PREDICT_PACKAGE_ID: z.string().min(1),
   PREDICT_OBJ_ID: z.string().min(1),
   DUSDC_TYPE: z.string().min(1),

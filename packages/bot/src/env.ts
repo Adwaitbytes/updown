@@ -8,6 +8,7 @@ const EnvSchema = z.object({
   WEBHOOK_SECRET: z.string().min(8, "WEBHOOK_SECRET must be >=8 chars"),
   DATABASE_URL: z.string().url(),
   SUI_RPC_URL: z.string().url().default("https://fullnode.testnet.sui.io:443"),
+  PREDICT_INDEXER_URL: z.string().url(),
   PREDICT_PACKAGE_ID: z.string().regex(/^0x[0-9a-fA-F]+$/u),
   PREDICT_OBJ_ID: z.string().regex(/^0x[0-9a-fA-F]+$/u),
   DUSDC_TYPE: z.string().min(1),

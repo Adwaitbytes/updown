@@ -1,5 +1,5 @@
 import pg from "pg";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getEnv } from "./env.js";
@@ -11,8 +11,16 @@ let pool: pg.Pool | undefined;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-async function loadInitSql(): Promise<string> {
-  return readFile(resolve(HERE, "migrations", "001_init.sql"), "utf8");
+async function loadMigrationSqls(): Promise<Array<{ name: string; sql: string }>> {
+  const dir = resolve(HERE, "migrations");
+  const entries = await readdir(dir);
+  const files = entries.filter((f) => f.endsWith(".sql")).sort();
+  return Promise.all(
+    files.map(async (name) => ({
+      name,
+      sql: await readFile(resolve(dir, name), "utf8"),
+    })),
+  );
 }
 
 export function getPool(): pg.Pool {
@@ -34,10 +42,12 @@ export async function runMigrations(): Promise<void> {
   const client = await p.connect();
   try {
     await client.query("BEGIN");
-    const sql = await loadInitSql();
-    await client.query(sql);
+    const migrations = await loadMigrationSqls();
+    for (const m of migrations) {
+      await client.query(m.sql);
+    }
     await client.query("COMMIT");
-    logger.info("db migrations applied");
+    logger.info({ count: migrations.length }, "db migrations applied");
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;

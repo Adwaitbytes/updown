@@ -20,6 +20,7 @@ const ServerSchema = z.object({
   // Telegram Bot API token. Used to derive the WebAppData HMAC key for
   // verifying Mini App `initData` server-side.
   BOT_TOKEN: z.string().min(1),
+  PREDICT_INDEXER_URL: z.string().url(),
 });
 
 export type PublicEnv = z.infer<typeof PublicSchema>;
@@ -47,5 +48,6 @@ export function readServerEnv(): ServerEnv {
     ENOKI_API_KEY: process.env.ENOKI_API_KEY,
     MASTER_DELEGATION_SECRET: process.env.MASTER_DELEGATION_SECRET,
     BOT_TOKEN: process.env.BOT_TOKEN,
+    PREDICT_INDEXER_URL: process.env.PREDICT_INDEXER_URL,
   });
 }
