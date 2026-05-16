@@ -1,6 +1,7 @@
 import type { Bot } from "grammy";
 import type { BotContext } from "../types.js";
 import { getStreak } from "../db.js";
+import { requirePrivateChat } from "./_guard.js";
 
 const TIER_NAMES: Record<number, string> = {
   0: "Bronze",
@@ -14,6 +15,7 @@ function tierLabel(tier: number): string {
 
 export function registerStreak(bot: Bot<BotContext>): void {
   bot.command("streak", async (ctx) => {
+    if (!(await requirePrivateChat(ctx))) return;
     const tgUserId = ctx.from?.id;
     if (tgUserId === undefined) {
       await ctx.reply("Could not identify you.");

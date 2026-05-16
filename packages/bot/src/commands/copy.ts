@@ -2,12 +2,14 @@ import type { Bot } from "grammy";
 import type { BotContext } from "../types.js";
 import { getPool } from "../db.js";
 import { usdToMicros } from "../sui/scale.js";
+import { requirePrivateChat } from "./_guard.js";
 
 const FOLLOW_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_CAP_DUSDC = 100;
 
 export function registerCopy(bot: Bot<BotContext>): void {
   bot.command("copy", async (ctx) => {
+    if (!(await requirePrivateChat(ctx))) return;
     const tgUserId = ctx.from?.id;
     if (tgUserId === undefined) {
       await ctx.reply("Could not identify you.");

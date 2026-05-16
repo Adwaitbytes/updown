@@ -4,11 +4,13 @@ import { InlineKeyboard } from "grammy";
 import type { BotContext } from "../types.js";
 import { getPool } from "../db.js";
 import { getEnv } from "../env.js";
+import { requirePrivateChat } from "./_guard.js";
 
 const SESSION_TTL_MS = 10 * 60 * 1000;
 
 export function registerStart(bot: Bot<BotContext>): void {
   bot.command("start", async (ctx) => {
+    if (!(await requirePrivateChat(ctx))) return;
     const tgUserId = ctx.from?.id;
     if (tgUserId === undefined) {
       await ctx.reply("Could not identify you.");

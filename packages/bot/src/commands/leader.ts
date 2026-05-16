@@ -1,6 +1,7 @@
 import type { Bot } from "grammy";
 import type { BotContext } from "../types.js";
 import { getPool } from "../db.js";
+import { requirePrivateChat } from "./_guard.js";
 
 interface LeaderRow {
   telegram_user_id: string;
@@ -19,8 +20,10 @@ function startOfWeekMs(now: number): number {
 
 export function registerLeader(bot: Bot<BotContext>): void {
   bot.command("leader", async (ctx) => {
-    // TODO: scope by chat_id once positions has a chat_id column. For now,
-    // both DMs and groups see the same global leaderboard.
+    // Group leaderboards aren't scoped yet (positions table has no chat_id
+    // column). Until that lands, refuse non-private chats so we don't leak
+    // a global PnL list into random groups.
+    if (!(await requirePrivateChat(ctx))) return;
     const _chatId = ctx.chat?.id;
     void _chatId;
 

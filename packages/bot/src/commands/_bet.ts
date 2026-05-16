@@ -12,6 +12,7 @@ import { usdToMicros, microsToUsd, strikeToScale } from "../sui/scale.js";
 import { formatLockedMessage } from "../format.js";
 import { getEnv } from "../env.js";
 import { resolveBtcOracle, type Tier } from "../sui/oracles.js";
+import { requirePrivateChat } from "./_guard.js";
 
 const ORACLE_TIERS: ReadonlySet<Tier> = new Set(["15m", "1h", "1d", "1w"]);
 
@@ -107,6 +108,8 @@ export async function handleBet(
   ctx: BotContext,
   side: "up" | "down",
 ): Promise<void> {
+  if (!(await requirePrivateChat(ctx))) return;
+
   const tgUserId = ctx.from?.id;
   if (tgUserId === undefined) {
     await ctx.reply("Could not identify you.");
@@ -123,6 +126,16 @@ export async function handleBet(
       return;
     }
     throw err;
+  }
+
+  // The /up flow takes 2-5s end-to-end (oracle resolution + nonce read +
+  // sponsored execute). Without an explicit typing indicator the bot looks
+  // frozen. Telegram auto-clears typing once the next message lands so this
+  // is a set-and-forget call.
+  try {
+    await ctx.replyWithChatAction("typing");
+  } catch {
+    // non-fatal; carry on
   }
 
   const user = await getUserByTelegramId(BigInt(tgUserId));
@@ -259,45 +272,61 @@ export async function handleBet(
   // id once the BetPlaced event is processed.
   const positionId = `${digest}:0`;
 
-  await pool.query(
-    `INSERT INTO positions
-       (id, telegram_user_id, sui_address, account_id, predict_manager_id,
-        betting_account_id, sui_tx_digest, market_key, oracle_id,
-        expiry_ms, strike_micros, is_up, stake_micros, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'open')
-     ON CONFLICT (id) DO NOTHING`,
-    [
-      positionId,
-      tgUserId.toString(),
-      user.sui_address,
-      user.account_id,
-      user.predict_manager_id,
-      user.account_id,
-      digest,
-      market.hash,
-      oracleId,
-      oracleExpiryMs.toString(),
-      strikeScaled.toString(),
-      side === "up",
-      amountMicros.toString(),
-    ],
-  );
+  // The on-chain tx already landed. If the DB writes below fail we MUST
+  // still tell the user about their tx digest — otherwise they think the
+  // bet didn't happen but their dUSDC is locked on-chain. The /balance
+  // command + indexer reconcile-by-digest path is what eventually heals
+  // the missing row.
+  const txLink = `https://suiscan.xyz/testnet/tx/${digest}`;
+  try {
+    await pool.query(
+      `INSERT INTO positions
+         (id, telegram_user_id, sui_address, account_id, predict_manager_id,
+          betting_account_id, sui_tx_digest, market_key, oracle_id,
+          expiry_ms, strike_micros, is_up, stake_micros, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'open')
+       ON CONFLICT (id) DO NOTHING`,
+      [
+        positionId,
+        tgUserId.toString(),
+        user.sui_address,
+        user.account_id,
+        user.predict_manager_id,
+        user.account_id,
+        digest,
+        market.hash,
+        oracleId,
+        oracleExpiryMs.toString(),
+        strikeScaled.toString(),
+        side === "up",
+        amountMicros.toString(),
+      ],
+    );
 
-  await pool.query(
-    `INSERT INTO daily_volume (telegram_user_id, day, total_stake_micros)
-     VALUES ($1, (NOW() AT TIME ZONE 'UTC')::date, $2)
-     ON CONFLICT (telegram_user_id, day)
-     DO UPDATE SET total_stake_micros =
-       daily_volume.total_stake_micros + EXCLUDED.total_stake_micros`,
-    [tgUserId.toString(), amountMicros.toString()],
-  );
+    await pool.query(
+      `INSERT INTO daily_volume (telegram_user_id, day, total_stake_micros)
+       VALUES ($1, (NOW() AT TIME ZONE 'UTC')::date, $2)
+       ON CONFLICT (telegram_user_id, day)
+       DO UPDATE SET total_stake_micros =
+         daily_volume.total_stake_micros + EXCLUDED.total_stake_micros`,
+      [tgUserId.toString(), amountMicros.toString()],
+    );
 
-  await ctx.reply(
-    formatLockedMessage({
-      intent,
-      potentialPayoutDusdc: Math.round(intent.amountDusdc * PAYOUT_MULTIPLIER),
-      txDigest: digest,
-      network: "testnet",
-    }),
-  );
+    await ctx.reply(
+      formatLockedMessage({
+        intent,
+        potentialPayoutDusdc: Math.round(intent.amountDusdc * PAYOUT_MULTIPLIER),
+        txDigest: digest,
+        network: "testnet",
+      }),
+    );
+  } catch (dbErr) {
+    logger.error(
+      { dbErr, digest, tg: tgUserId },
+      "DB write failed AFTER successful on-chain tx — manual recovery required",
+    );
+    await ctx.reply(
+      `Locked on-chain ✅ but we hit a snag recording it. Your tx is real:\n${txLink}\nWe'll reconcile on next /balance — DM @UpDownBet if anything's off.`,
+    );
+  }
 }

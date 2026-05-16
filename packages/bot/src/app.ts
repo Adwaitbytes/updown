@@ -23,7 +23,14 @@ export async function buildApp(): Promise<Express> {
 
   const env = getEnv();
 
-  if (!migrationsPromise) migrationsPromise = runMigrations();
+  if (!migrationsPromise) {
+    logger.info("starting db migrations");
+    migrationsPromise = runMigrations().catch((err) => {
+      logger.error({ err }, "migrations failed; will retry on next request");
+      migrationsPromise = null; // reset so next call retries
+      throw err;
+    });
+  }
   await migrationsPromise;
 
   const bot = new Bot<BotContext>(env.BOT_TOKEN);
@@ -51,8 +58,15 @@ export async function buildApp(): Promise<Express> {
   registerLeader(bot);
   registerCopy(bot);
 
-  bot.catch((err) => {
+  bot.catch(async (err) => {
     logger.error({ err: err.error }, "bot handler error");
+    try {
+      await err.ctx.reply(
+        "Something went wrong on our end. Please try again in a moment — if it keeps happening, ping @UpDownBet.",
+      );
+    } catch {
+      // ignore secondary failure (e.g. user blocked the bot)
+    }
   });
 
   cachedApp = buildServer(bot);
