@@ -6,7 +6,14 @@ import { loadEnv } from "./env.js";
 import { log } from "./log.js";
 import { getSettlerSigner, getSuiClient } from "./sui.js";
 
-const STREAK_TIERS = [3, 7, 30] as const;
+// Map win-count thresholds to the on-chain u8 tier value. The Move side
+// asserts `tier <= 2`, so we must NEVER pass the threshold (e.g. 3/7/30)
+// as the tier — only 0/1/2 are valid.
+const STREAK_TIERS = [
+  { wins: 3, tier: 0 }, // Bronze
+  { wins: 7, tier: 1 }, // Silver
+  { wins: 30, tier: 2 }, // Gold
+] as const;
 
 interface SettlementOutcome {
   positionId: string;
@@ -75,8 +82,9 @@ export async function runOnce(): Promise<{ settled: number; errors: number }> {
         settled += 1;
       }
       // Any rows that were transitioned to 'settling' but did not produce a
-      // PositionSettled event (Move-side abort, missing event, etc.) are
-      // rolled back to 'open' so a future tick can retry them.
+      // PositionRedeemed event with is_settled=true (oracle not yet settled,
+      // Move-side abort, missing event, etc.) are rolled back to 'open' so a
+      // future tick can retry them.
       const unsettled = group.filter((r) => !settledIds.has(r.id));
       if (unsettled.length > 0) {
         await query(
@@ -189,17 +197,55 @@ function parseSettlementEvents(
   result: ParsedTxResult,
 ): SettlementOutcome[] {
   const outcomes: SettlementOutcome[] = [];
-  const settledType = `${env.PREDICT_PACKAGE_ID}::predict::PositionSettled`;
+  // DeepBook Predict actually emits `PositionRedeemed` (NOT `PositionSettled`)
+  // from `predict::redeem_permissionless`. ABI fields:
+  //   predict_id, manager_id, owner, executor, quote_asset, oracle_id,
+  //   expiry, strike, is_up, quantity, payout, bid_price, is_settled
+  // The event does NOT carry our DB row id or market_key — we have to match
+  // the (oracle_id, expiry, strike, is_up) tuple against the open positions
+  // row. Both event.strike and our DB `strike_micros` column are at 1e9
+  // scale (USD * 1e9) — `strike_micros` is a legacy column name; place_bet
+  // in bot/src/commands/_bet.ts writes the 1e9-scaled value (see
+  // bot/src/sui/scale.ts:STRIKE_SCALE).
+  const redeemedType = `${env.PREDICT_PACKAGE_ID}::predict::PositionRedeemed`;
   for (const ev of result.events ?? []) {
-    if (ev.type !== settledType) continue;
+    if (ev.type !== redeemedType) continue;
     const json = ev.parsedJson as Record<string, unknown> | undefined;
     if (!json) continue;
-    const marketKey = typeof json.market_key === "string" ? json.market_key : null;
-    const payout = typeof json.payout === "string" ? BigInt(json.payout) : 0n;
-    const won = json.won === true;
-    if (!marketKey) continue;
-    const match = group.find((r) => r.market_key === marketKey);
+
+    // Gate: oracle hasn't actually settled this position yet. Treat as
+    // "still settling, retry later" — leave the row in 'settling' so the
+    // outer loop rolls it back to 'open' for a future tick.
+    if (json.is_settled !== true) continue;
+
+    const oracleId = typeof json.oracle_id === "string" ? json.oracle_id : null;
+    const expiryStr = typeof json.expiry === "string" ? json.expiry : null;
+    const strikeStr = typeof json.strike === "string" ? json.strike : null;
+    const isUp =
+      typeof json.is_up === "boolean"
+        ? json.is_up
+        : json.is_up === "true"
+          ? true
+          : json.is_up === "false"
+            ? false
+            : null;
+    const payout =
+      typeof json.payout === "string" ? BigInt(json.payout) : 0n;
+    if (!oracleId || !expiryStr || !strikeStr || isUp === null) continue;
+
+    const eventExpiry = BigInt(expiryStr);
+    const eventStrike = BigInt(strikeStr);
+    const match = group.find(
+      (r) =>
+        r.oracle_id === oracleId &&
+        BigInt(r.expiry_ms) === eventExpiry &&
+        r.strike_micros !== null &&
+        BigInt(r.strike_micros) === eventStrike &&
+        r.is_up === isUp,
+    );
     if (!match) continue;
+
+    const won = payout > 0n;
     outcomes.push({ positionId: match.id, payoutMicros: payout, won });
   }
   return outcomes;
@@ -211,17 +257,19 @@ async function onSettled(
 ): Promise<void> {
   if (!pos) return;
   await withTx(async (client) => {
-    // Only flip 'settling' -> 'settled' so we never overwrite a row that was
-    // already settled by a previous tick (defence in depth on top of the
-    // SKIP LOCKED guard above).
+    // Accept either 'settling' or 'settled' so this UPDATE still goes through
+    // if the indexer raced us and wrote 'settled' first from its own WS
+    // subscription on PositionRedeemed. The `won IS DISTINCT FROM` guard
+    // keeps us idempotent: once won/payout matches we no-op.
     await client.query(
       `UPDATE positions
           SET status = 'settled',
               payout_micros = $1,
               won = $2,
-              settled_at = NOW()
+              settled_at = COALESCE(settled_at, NOW())
         WHERE id = $3
-          AND status = 'settling'`,
+          AND status IN ('settling', 'settled')
+          AND won IS DISTINCT FROM $2`,
       [outcome.payoutMicros.toString(), outcome.won, outcome.positionId],
     );
 
@@ -261,18 +309,26 @@ async function onSettled(
       [nextStreak, nextBest, lastOutcome, pos.telegram_user_id],
     );
 
-    // Tier crossing → enqueue mint job.
-    const tier = STREAK_TIERS.find(
-      (t) => nextStreak === t && prev.last_tier_minted < t,
-    );
-    if (tier !== undefined) {
+    // Tier crossing → enqueue mint job. Pick the HIGHEST tier the user now
+    // qualifies for that hasn't already been minted. We scan in reverse so
+    // a user who somehow jumps multiple thresholds in one settlement still
+    // gets the top tier (the lower tiers are auto-shadowed by the
+    // last_tier_minted gate, since the worker bumps it on success).
+    const crossed = [...STREAK_TIERS]
+      .reverse()
+      .find(
+        (t) =>
+          nextStreak >= t.wins && t.tier > prev.last_tier_minted,
+      );
+    if (crossed !== undefined) {
       const recipient = pos.sui_address;
       const accountId = pos.account_id ?? pos.betting_account_id;
       if (!recipient || !accountId) {
         log.warn(
           {
             telegramUserId: pos.telegram_user_id,
-            tier,
+            tier: crossed.tier,
+            wins: nextStreak,
             hasRecipient: !!recipient,
             hasAccount: !!accountId,
           },
@@ -280,7 +336,7 @@ async function onSettled(
         );
       } else {
         const env = loadEnv();
-        const imageUrl = `${env.STREAK_IMAGE_BASE_URL}/${tier}.svg`;
+        const imageUrl = `${env.STREAK_IMAGE_BASE_URL}/${crossed.tier}.svg`;
         await client.query(
           `INSERT INTO streak_mint_jobs
                 (telegram_user_id, recipient, tier, wins, account_id,
@@ -289,7 +345,7 @@ async function onSettled(
           [
             pos.telegram_user_id,
             recipient,
-            tier,
+            crossed.tier,
             nextStreak,
             accountId,
             imageUrl,
