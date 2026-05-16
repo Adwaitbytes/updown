@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 const BOT_URL = "https://t.me/UpDownBet_bot";
 const REPO_URL = "https://github.com/Adwaitbytes/updown";
 const SUI_PACKAGE = "0x54b1ab9644a5d250d3009d4073a51d8484f9a388ca10eaa9293b5283dbfa5290";
-const PREDICT_PACKAGE = "0xf5ea2b370000000000000000000000000000000000000000000000000000785138";
+const PREDICT_PACKAGE = "0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138";
 
 type Step = {
   num: string;
