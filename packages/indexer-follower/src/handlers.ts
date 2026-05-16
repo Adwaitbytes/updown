@@ -36,15 +36,28 @@ const PositionMintedSchema = z
   .passthrough();
 type PositionMintedJson = z.infer<typeof PositionMintedSchema>;
 
-const PositionSettledSchema = z
+// PositionRedeemed — the real on-chain event fired when a position settles
+// (see REAL_PREDICT_ABI.json). Fields:
+//   predict_id, manager_id, owner, executor, quote_asset, oracle_id,
+//   expiry (u64), strike (u64, 1e9-scaled USD), is_up, quantity,
+//   payout (u64), bid_price, is_settled (bool)
+const PositionRedeemedSchema = z
   .object({
-    position_id: z.string(),
-    market_key: z.string().optional(),
+    predict_id: z.string().optional(),
+    manager_id: z.string().optional(),
+    owner: z.string().optional(),
+    executor: z.string().optional(),
+    oracle_id: z.string(),
+    expiry: z.union([z.string(), z.number()]),
+    strike: z.union([z.string(), z.number()]),
+    is_up: z.boolean(),
+    quantity: z.union([z.string(), z.number()]).optional(),
     payout: z.union([z.string(), z.number()]).optional(),
-    won: z.boolean().optional(),
+    bid_price: z.union([z.string(), z.number()]).optional(),
+    is_settled: z.boolean(),
   })
   .passthrough();
-type PositionSettledJson = z.infer<typeof PositionSettledSchema>;
+type PositionRedeemedJson = z.infer<typeof PositionRedeemedSchema>;
 
 const OracleSVIUpdatedSchema = z
   .object({
@@ -106,9 +119,9 @@ export async function handleEvent(ev: SuiEvent): Promise<void> {
       if (j) await onPositionMinted(j, ev);
       return;
     }
-    case predictType("PositionSettled"): {
-      const j = tryParse(PositionSettledSchema, ev.parsedJson, ev);
-      if (j) await onPositionSettled(j);
+    case predictType("PositionRedeemed"): {
+      const j = tryParse(PositionRedeemedSchema, ev.parsedJson, ev);
+      if (j) await onPositionRedeemed(j, ev);
       return;
     }
     case predictType("OracleSVIUpdated"): {
@@ -190,16 +203,49 @@ async function onPositionMinted(
   );
 }
 
-async function onPositionSettled(j: PositionSettledJson): Promise<void> {
-  if (!j.position_id) return;
+async function onPositionRedeemed(
+  j: PositionRedeemedJson,
+  ev: SuiEvent,
+): Promise<void> {
+  // Gate on is_settled — if the oracle hasn't settled yet, the redeem path
+  // produced a zero-payout refund / partial event; do not flip status.
+  if (j.is_settled !== true) {
+    log.warn(
+      {
+        txDigest: ev.id.txDigest,
+        eventSeq: ev.id.eventSeq,
+        oracle_id: j.oracle_id,
+        expiry: asString(j.expiry),
+      },
+      "PositionRedeemed with is_settled=false; skipping status flip",
+    );
+    return;
+  }
+
+  // Join event back to the DB row by (oracle_id, expiry, strike, is_up).
+  // Event `strike` is u64 at 1e9 (USD * 1e9); DB `strike_micros` is at 1e6.
+  // Divide by 1000 to convert event scale to DB scale.
+  const strikeEvent = BigInt(asString(j.strike) ?? "0");
+  const strikeDb = (strikeEvent / 1000n).toString();
+  const expiryMs = asString(j.expiry) ?? "0";
+  const payoutMicros = asString(j.payout) ?? "0";
+  const won = BigInt(payoutMicros) > 0n;
+
+  // Guarded UPDATE:
+  //   - AND status IN ('open','settling') prevents back-stepping from 'settled'
+  //   - COALESCE preserves any settler-written values on re-fire
   await query(
     `UPDATE positions
-        SET status = 'settled',
-            payout_micros = $1,
-            won = $2,
-            settled_at = COALESCE(settled_at, NOW())
-      WHERE id = $3`,
-    [asString(j.payout) ?? "0", j.won ?? false, j.position_id],
+        SET status        = 'settled',
+            payout_micros = COALESCE(positions.payout_micros, $1),
+            won           = COALESCE(positions.won, $2),
+            settled_at    = COALESCE(positions.settled_at, NOW())
+      WHERE oracle_id     = $3
+        AND expiry_ms     = $4
+        AND strike_micros = $5
+        AND is_up         = $6
+        AND status IN ('open', 'settling')`,
+    [payoutMicros, won, j.oracle_id, expiryMs, strikeDb, j.is_up],
   );
 }
 
