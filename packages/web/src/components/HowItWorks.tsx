@@ -12,7 +12,7 @@ const STEPS: readonly Step[] = [
     number: "01",
     title: "Sign in with Google.",
     description:
-      "Open the Telegram bot, tap once to open the Mini App, sign in with Google. zkLogin gives you a Sui address you fully control — no seed phrase, no custodian. We fund your account with starter dUSDC so you can play immediately.",
+      "Open the Telegram bot, tap once to open the Mini App, sign in with Google. zkLogin gives you a Sui address you fully control — no seed phrase, no custodian. Top up dUSDC yourself via the bot's /balance link when you're ready to play.",
     delay: "200ms",
   },
   {

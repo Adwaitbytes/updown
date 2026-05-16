@@ -22,8 +22,8 @@ export function CTABand(): JSX.Element {
               verified on-chain.
             </h2>
             <p className="text-lg opacity-70">
-              Open the bot, sign in with Google, get free starter dUSDC. Place
-              your first /up or /down in under 60 seconds.
+              Open the bot, sign in with Google, top up dUSDC from /balance.
+              Place your first /up or /down in under 60 seconds.
             </p>
           </div>
 

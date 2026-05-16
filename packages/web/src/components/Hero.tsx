@@ -235,7 +235,7 @@ export function Hero(): React.JSX.Element {
 
           {/* Fine print */}
           <p className="font-mono text-[0.6875rem] tracking-wide text-[var(--color-fg-dim)]">
-            Free starter dUSDC · No seed phrase · 18+ where applicable
+            No seed phrase · No wallet to install · 18+ where applicable
           </p>
         </div>
 

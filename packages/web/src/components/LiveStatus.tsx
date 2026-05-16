@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState, type JSX } from "react";
 
 type EndpointId = "web" | "miniapp" | "bot";
-type Status = "checking" | "up" | "down";
+type Status = "checking" | "up" | "slow" | "down";
 
 type Endpoint = {
   readonly id: EndpointId;
   readonly label: string;
   readonly tag: string;
   readonly url: string;
+  readonly accept: string;
+  readonly expectJsonOk: boolean;
 };
 
 const ENDPOINTS: readonly Endpoint[] = [
@@ -17,24 +19,30 @@ const ENDPOINTS: readonly Endpoint[] = [
     id: "web",
     label: "Marketing site",
     tag: "MARKETING · vercel",
-    url: "https://updown-web.vercel.app",
+    url: "https://updown-web.vercel.app/",
+    accept: "text/html",
+    expectJsonOk: false,
   },
   {
     id: "miniapp",
     label: "Mini App",
     tag: "MINI APP · vercel",
-    url: "https://updown-miniapp.vercel.app/onboard?session=demo123demo123demo123demo123",
+    url: "https://updown-miniapp.vercel.app/onboard",
+    accept: "text/html",
+    expectJsonOk: false,
   },
   {
     id: "bot",
     label: "Bot webhook",
     tag: "BOT · vercel",
     url: "https://updown-bot.vercel.app/healthz",
+    accept: "application/json",
+    expectJsonOk: true,
   },
 ] as const;
 
 const POLL_INTERVAL_MS = 30_000;
-const PING_TIMEOUT_MS = 5_000;
+const SLOW_THRESHOLD_MS = 3_000;
 const TICK_INTERVAL_MS = 1_000;
 
 const SCOPED_STYLES = `
@@ -100,24 +108,85 @@ function formatAgo(now: number, then: number | null): string {
   return `last checked: ${hours}h ago`;
 }
 
-async function pingEndpoint(url: string): Promise<Status> {
+type PingResult = {
+  readonly status: Status;
+  readonly detail: string;
+};
+
+async function pingEndpoint(endpoint: Endpoint): Promise<PingResult> {
   const controller = new AbortController();
+  const start =
+    typeof performance !== "undefined" ? performance.now() : Date.now();
   const timer = setTimeout(() => {
     controller.abort();
-  }, PING_TIMEOUT_MS);
+  }, SLOW_THRESHOLD_MS);
   try {
-    // `no-cors` returns an opaque response on success; any non-thrown response
-    // here means the host responded. This is a liveness check, not a strict
-    // status assertion.
-    await fetch(url, {
+    // Real CORS-aware GET: a no-cors opaque response always resolves, which
+    // hid actual 500/404s from the dashboard. We now require a true 200 and,
+    // for the bot, JSON {ok:true}.
+    const res = await fetch(endpoint.url, {
       method: "GET",
-      mode: "no-cors",
+      headers: { Accept: endpoint.accept },
       cache: "no-store",
       signal: controller.signal,
     });
-    return "up";
-  } catch {
-    return "down";
+    const elapsedMs = Math.round(
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+        start,
+    );
+
+    if (!res.ok) {
+      return {
+        status: "down",
+        detail: `HTTP ${res.status} ${res.statusText || ""} · ${elapsedMs}ms`.trim(),
+      };
+    }
+
+    if (endpoint.expectJsonOk) {
+      try {
+        const body = (await res.json()) as { ok?: unknown };
+        if (body.ok !== true) {
+          return {
+            status: "down",
+            detail: `HTTP ${res.status} · body.ok != true · ${elapsedMs}ms`,
+          };
+        }
+      } catch {
+        return {
+          status: "down",
+          detail: `HTTP ${res.status} · invalid JSON · ${elapsedMs}ms`,
+        };
+      }
+    }
+
+    if (elapsedMs >= SLOW_THRESHOLD_MS) {
+      return {
+        status: "slow",
+        detail: `HTTP ${res.status} · ${elapsedMs}ms (slow)`,
+      };
+    }
+
+    return {
+      status: "up",
+      detail: `HTTP ${res.status} · ${elapsedMs}ms`,
+    };
+  } catch (err) {
+    const elapsedMs = Math.round(
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+        start,
+    );
+    const aborted =
+      (err as { name?: string } | null)?.name === "AbortError" ||
+      controller.signal.aborted;
+    if (aborted) {
+      return {
+        status: "slow",
+        detail: `timeout after ${elapsedMs}ms (>${SLOW_THRESHOLD_MS}ms)`,
+      };
+    }
+    const message =
+      err instanceof Error && err.message ? err.message : "network error";
+    return { status: "down", detail: `${message} · ${elapsedMs}ms` };
   } finally {
     clearTimeout(timer);
   }
@@ -126,13 +195,18 @@ async function pingEndpoint(url: string): Promise<Status> {
 type StatusEntry = {
   readonly status: Status;
   readonly lastChecked: number | null;
+  readonly detail: string;
 };
 
 type StatusMap = Readonly<Record<EndpointId, StatusEntry>>;
 
 const INITIAL_STATUS: StatusMap = ENDPOINTS.reduce<Record<EndpointId, StatusEntry>>(
   (acc, endpoint) => {
-    acc[endpoint.id] = { status: "checking", lastChecked: null };
+    acc[endpoint.id] = {
+      status: "checking",
+      lastChecked: null,
+      detail: "pending first ping",
+    };
     return acc;
   },
   {} as Record<EndpointId, StatusEntry>,
@@ -147,6 +221,15 @@ function StatusDot({ status }: DotProps): JSX.Element {
         aria-hidden="true"
         className="ls-dot-up relative inline-block h-2.5 w-2.5 rounded-full"
         style={{ background: "var(--color-up)" }}
+      />
+    );
+  }
+  if (status === "slow") {
+    return (
+      <span
+        aria-hidden="true"
+        className="inline-block h-2.5 w-2.5 rounded-full"
+        style={{ background: "var(--color-flash)" }}
       />
     );
   }
@@ -170,18 +253,21 @@ function StatusDot({ status }: DotProps): JSX.Element {
 
 function statusCopy(status: Status): string {
   if (status === "up") return "Live";
+  if (status === "slow") return "Slow";
   if (status === "down") return "Down";
   return "Checking…";
 }
 
 function statusColor(status: Status): string {
   if (status === "up") return "var(--color-up)";
+  if (status === "slow") return "var(--color-bg-ink)";
   if (status === "down") return "var(--color-down)";
   return "var(--color-fg-muted)";
 }
 
 function statusBg(status: Status): string {
   if (status === "up") return "var(--color-up-soft)";
+  if (status === "slow") return "var(--color-flash-soft)";
   if (status === "down") return "var(--color-down-soft)";
   return "rgba(0, 15, 29, 0.06)";
 }
@@ -203,13 +289,18 @@ export function LiveStatus(): JSX.Element {
           [endpoint.id]: {
             status: "checking",
             lastChecked: prev[endpoint.id].lastChecked,
+            detail: prev[endpoint.id].detail,
           },
         }));
-        void pingEndpoint(endpoint.url).then((status) => {
+        void pingEndpoint(endpoint).then((result) => {
           if (!mountedRef.current) return;
           setStatuses((prev) => ({
             ...prev,
-            [endpoint.id]: { status, lastChecked: Date.now() },
+            [endpoint.id]: {
+              status: result.status,
+              lastChecked: Date.now(),
+              detail: result.detail,
+            },
           }));
         });
       }
@@ -253,7 +344,7 @@ export function LiveStatus(): JSX.Element {
                 key={endpoint.id}
                 className="ls-card card flex flex-col gap-4 p-5"
                 tabIndex={0}
-                aria-label={`${endpoint.label}: ${statusCopy(entry.status)}`}
+                aria-label={`${endpoint.label}: ${statusCopy(entry.status)} (${entry.detail})`}
               >
                 <span className="text-eyebrow truncate">{endpoint.tag}</span>
 
@@ -284,7 +375,13 @@ export function LiveStatus(): JSX.Element {
                     boxShadow: "var(--shadow-elev)",
                   }}
                 >
-                  {endpoint.url}
+                  <span className="block">{endpoint.url}</span>
+                  <span
+                    className="mt-1 block"
+                    style={{ color: "var(--color-fg-dim)" }}
+                  >
+                    {entry.detail}
+                  </span>
                 </span>
               </article>
             );

@@ -18,8 +18,35 @@ export function buildServer(bot: Bot<BotContext>): express.Express {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
 
-  app.get("/healthz", (_req: Request, res: Response) => {
-    res.status(200).json({ ok: true });
+  // Depth health check: probes Postgres and the Sui RPC endpoint so the
+  // marketing dashboard reflects real dependency status (not just process
+  // liveness). CORS open so the public status page can call this from
+  // a different origin; the response carries no user data.
+  app.get("/healthz", async (_req: Request, res: Response): Promise<void> => {
+    const checks = await Promise.allSettled([
+      getPool()
+        .query("SELECT 1")
+        .then(() => true),
+      fetch(env.SUI_RPC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "sui_getChainIdentifier",
+          params: [],
+        }),
+        signal: AbortSignal.timeout(2000),
+      }).then((r) => r.ok),
+    ]);
+    const db =
+      checks[0].status === "fulfilled" && checks[0].value === true;
+    const sui =
+      checks[1].status === "fulfilled" && checks[1].value === true;
+    const ok = db && sui;
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=10");
+    res.status(ok ? 200 : 503).json({ ok, db, sui });
   });
 
   // Telegram webhook with HMAC secret-token verification.

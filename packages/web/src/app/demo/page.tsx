@@ -44,8 +44,8 @@ const STEPS: readonly Step[] = [
   },
   {
     num: "03",
-    title: "Get free starter dUSDC + a BettingAccount",
-    body: "One sponsored PTB calls predict::create_manager → coin::mint(dUSDC) → updown::account::new in a single atomic transaction. You walk away with 25 dUSDC, a PredictManager on DeepBook, and a Move-defined BettingAccount with a $500 daily cap.",
+    title: "Get a BettingAccount + PredictManager",
+    body: "One sponsored PTB calls predict::create_manager → updown::account::new in a single atomic transaction. You walk away with a PredictManager on DeepBook and a Move-defined BettingAccount with a $500 daily cap. You top up dUSDC yourself via the bot's /balance flow — the dUSDC TreasuryCap lives with MystenLabs, so we cannot auto-fund.",
     details: [
       "Gas is sponsored by Enoki — you never need SUI in your wallet",
       "Daily cap is enforced by Move on-chain AND by the bot before submit (saves wasted gas)",
