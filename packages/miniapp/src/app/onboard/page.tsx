@@ -20,15 +20,40 @@ interface DerivedKey {
 
 const NETWORK = "testnet" as const;
 const SESSION_STORAGE_KEY = "updown:session";
+const BUILD_REV = "20260618-cachebust-3";
 
 export default function OnboardPage(): React.ReactElement {
   const [step, setStep] = useState<Step>({ kind: "loading" });
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   useEffect(() => {
-    initTelegram();
+    console.log("[updown/onboard] build", BUILD_REV);
 
     if (typeof window === "undefined") return;
+
+    // If this page is the OAuth popup we opened from the mini app (Enoki
+    // redirects back here with #id_token=...), post the hash to the opener and
+    // close. The real onboarding continues in the opener, which still holds the
+    // Telegram initData + zkLogin session state. (Telegram Web hosts the mini
+    // app in a sandboxed iframe where Google OAuth itself is blocked, so we run
+    // the OAuth in a top-level popup instead.)
+    if (window.opener && window.opener !== window) {
+      const popupHash = window.location.hash;
+      if (popupHash && popupHash.includes("id_token")) {
+        try {
+          window.opener.postMessage(
+            { type: "updown-oauth", hash: popupHash },
+            window.location.origin,
+          );
+        } catch {
+          // ignore
+        }
+        window.close();
+        return;
+      }
+    }
+
+    initTelegram();
 
     // 1. If `?session=` is present in the URL, immediately move it into
     //    sessionStorage and scrub the URL bar. This prevents the token from
@@ -76,14 +101,18 @@ export default function OnboardPage(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleAuthCallback = useCallback(async (token: string) => {
+  const handleAuthCallback = useCallback(
+    async (token: string, hashOverride?: string) => {
     setStep({ kind: "signing" });
     try {
       const enokiMod = await import("@mysten/enoki");
       const flow = new enokiMod.EnokiFlow({
         apiKey: requireEnv("NEXT_PUBLIC_ENOKI_PUBLIC_KEY"),
       });
-      await flow.handleAuthCallback();
+      // `hashOverride` is supplied when the id_token arrives via postMessage
+      // from the OAuth popup (Telegram Web case). Falls back to the current
+      // URL hash for the normal full-page redirect case.
+      await flow.handleAuthCallback(hashOverride);
 
       const keypair = await flow.getKeypair({ network: NETWORK });
       const suiAddress = keypair.toSuiAddress();
@@ -122,19 +151,40 @@ export default function OnboardPage(): React.ReactElement {
       });
       const kindBase64 = toBase64(kindBytes);
 
-      const sponsored = await flow.enokiClient.createSponsoredTransaction({
-        network: NETWORK,
-        transactionKindBytes: kindBase64,
-        sender: suiAddress,
+      // Sponsorship MUST happen server-side with the private Enoki key —
+      // public keys are forbidden from sponsoring (Enoki returns 403). The
+      // server route restricts sponsorship to our onboarding move-call targets.
+      const sponsorRes = await fetch(`/api/sponsor`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          transactionKindBytes: kindBase64,
+          sender: suiAddress,
+        }),
       });
+      if (!sponsorRes.ok) {
+        const detail = await sponsorRes.text().catch(() => "");
+        throw new Error(`sponsor failed: ${sponsorRes.status} ${detail}`);
+      }
+      const sponsored = (await sponsorRes.json()) as {
+        bytes: string;
+        digest: string;
+      };
 
       const { signature } = await keypair.signTransaction(
         fromBase64(sponsored.bytes),
       );
-      const exec = await flow.enokiClient.executeSponsoredTransaction({
-        digest: sponsored.digest,
-        signature,
+
+      const execRes = await fetch(`/api/execute`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ digest: sponsored.digest, signature }),
       });
+      if (!execRes.ok) {
+        const detail = await execRes.text().catch(() => "");
+        throw new Error(`execute failed: ${execRes.status} ${detail}`);
+      }
+      const exec = (await execRes.json()) as { digest: string };
 
       // Wait for the tx to be indexed and pull objectChanges so we can
       // identify the freshly-created BettingAccount, OwnerCap, and
@@ -161,7 +211,9 @@ export default function OnboardPage(): React.ReactElement {
       );
       const predictManagerId = findCreatedObjectId(
         objectChanges,
-        (t) => t === `${predictPkg}::predict::PredictManager`,
+        // The manager object lives in the `predict_manager` module (not
+        // `predict`); create_manager returns its ID and shares the object.
+        (t) => t === `${predictPkg}::predict_manager::PredictManager`,
       );
 
       if (!accountId) throw new Error("BettingAccount not found in tx effects");
@@ -170,25 +222,27 @@ export default function OnboardPage(): React.ReactElement {
         throw new Error("PredictManager not found in tx effects");
       }
 
-      // Forward the new IDs to the bot webhook. The session token rides in
-      // the body (not the URL) so it's not captured in proxy logs.
-      const post = await fetch(
-        `${requireEnv("NEXT_PUBLIC_BOT_WEBHOOK_URL")}/miniapp/session`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            token,
-            initData,
-            suiAddress,
-            accountId,
-            ownerCapId,
-            predictManagerId,
-            delegatedPubkey: dk.delegatedPubkeyBase64,
-          }),
-        },
-      );
-      if (!post.ok) throw new Error(`webhook failed: ${post.status}`);
+      // Forward the new IDs to the bot — via our own same-origin /api/register
+      // proxy. A direct browser POST to the bot origin is blocked by both CORS
+      // (the bot sends no CORS headers on this route) and the page CSP. The
+      // proxy calls the bot server-side; the bot re-verifies initData + token.
+      const post = await fetch(`/api/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          token,
+          initData,
+          suiAddress,
+          accountId,
+          ownerCapId,
+          predictManagerId,
+          delegatedPubkey: dk.delegatedPubkeyBase64,
+        }),
+      });
+      if (!post.ok) {
+        const detail = await post.text().catch(() => "");
+        throw new Error(`register failed: ${post.status} ${detail}`);
+      }
 
       // Success: drop the now-consumed session from sessionStorage.
       try {
@@ -218,10 +272,51 @@ export default function OnboardPage(): React.ReactElement {
         redirectUrl,
         network: NETWORK,
       });
-      window.location.href = url;
+
+      // Telegram Web hosts the mini app in a sandboxed cross-origin iframe
+      // where Google's account chooser returns 403 (it needs first-party
+      // cookies). Open OAuth in a top-level popup; the popup posts the
+      // id_token back here, where we still hold initData + zkLogin state.
+      const popup = window.open(
+        url,
+        "updown-google-oauth",
+        "popup,width=480,height=720",
+      );
+      if (!popup) {
+        // Popup blocked or not in an iframe — full-page nav works directly.
+        window.location.href = url;
+        return;
+      }
+      const onMessage = (ev: MessageEvent) => {
+        if (ev.origin !== window.location.origin) return;
+        const data = ev.data as { type?: string; hash?: string } | null;
+        if (!data || data.type !== "updown-oauth" || !data.hash) return;
+        window.removeEventListener("message", onMessage);
+        try {
+          popup.close();
+        } catch {
+          // ignore
+        }
+        let stored: string | null = null;
+        try {
+          stored = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+        } catch {
+          stored = null;
+        }
+        if (stored) {
+          void handleAuthCallback(stored, data.hash);
+        } else {
+          setStep({
+            kind: "error",
+            message: "Missing session token. Please re-open from the bot.",
+          });
+        }
+      };
+      window.addEventListener("message", onMessage);
     } catch (err) {
       setStep({ kind: "error", message: errMsg(err) });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -288,8 +383,27 @@ export default function OnboardPage(): React.ReactElement {
   );
 }
 
+// NEXT_PUBLIC_* vars are only inlined by Next.js/Turbopack when read as a
+// STATIC literal (process.env.NEXT_PUBLIC_FOO). A dynamic process.env[key]
+// access is NOT substituted in the browser bundle and resolves to undefined,
+// which is exactly what caused the spurious "Missing env" errors. We build a
+// static map here so each var is inlined, then look it up by key.
+const PUBLIC_ENV: Record<string, string | undefined> = {
+  NEXT_PUBLIC_ENOKI_PUBLIC_KEY: process.env.NEXT_PUBLIC_ENOKI_PUBLIC_KEY,
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+  NEXT_PUBLIC_SUI_NETWORK: process.env.NEXT_PUBLIC_SUI_NETWORK,
+  NEXT_PUBLIC_SUI_RPC_URL: process.env.NEXT_PUBLIC_SUI_RPC_URL,
+  NEXT_PUBLIC_PREDICT_PACKAGE_ID: process.env.NEXT_PUBLIC_PREDICT_PACKAGE_ID,
+  NEXT_PUBLIC_PREDICT_OBJ_ID: process.env.NEXT_PUBLIC_PREDICT_OBJ_ID,
+  NEXT_PUBLIC_DUSDC_TYPE: process.env.NEXT_PUBLIC_DUSDC_TYPE,
+  NEXT_PUBLIC_DUSDC_TREASURY_CAP_ID:
+    process.env.NEXT_PUBLIC_DUSDC_TREASURY_CAP_ID,
+  NEXT_PUBLIC_UPDOWN_PACKAGE_ID: process.env.NEXT_PUBLIC_UPDOWN_PACKAGE_ID,
+  NEXT_PUBLIC_BOT_WEBHOOK_URL: process.env.NEXT_PUBLIC_BOT_WEBHOOK_URL,
+};
+
 function requireEnv(key: string): string {
-  const v = process.env[key];
+  const v = PUBLIC_ENV[key];
   if (!v) throw new Error(`Missing env: ${key}`);
   return v;
 }

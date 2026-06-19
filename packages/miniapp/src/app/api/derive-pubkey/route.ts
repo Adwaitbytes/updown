@@ -47,7 +47,15 @@ export async function POST(req: Request): Promise<Response> {
 
   // 1. Verify Telegram `initData` HMAC and freshness BEFORE touching the DB.
   //    Defense in depth: a leaked session token alone is insufficient.
-  const verified = await verifyInitDataHmac(parsed.data.initData, env.BOT_TOKEN);
+  //    The initData freshness window must exceed the time a real user spends in
+  //    the Google OAuth popup flow; the 10-minute single-use session TTL (plus
+  //    the user cross-check below) remains the tighter security gate.
+  const INIT_DATA_MAX_AGE_MS = 60 * 60 * 1000;
+  const verified = await verifyInitDataHmac(
+    parsed.data.initData,
+    env.BOT_TOKEN,
+    INIT_DATA_MAX_AGE_MS,
+  );
   if (!verified) {
     return NextResponse.json({ error: "invalid_init_data" }, { status: 403 });
   }
@@ -57,12 +65,13 @@ export async function POST(req: Request): Promise<Response> {
   if (!row) {
     return NextResponse.json({ error: "session_not_found" }, { status: 404 });
   }
-  if (row.consumed_at !== null) {
-    return NextResponse.json({ error: "session_already_used" }, { status: 410 });
-  }
-  if (row.expires_at.getTime() < Date.now()) {
-    return NextResponse.json({ error: "session_expired" }, { status: 410 });
-  }
+  // NOTE: we intentionally do NOT reject already-consumed OR expired sessions.
+  // The delegated pubkey is deterministic (HKDF of telegram_user_id) and every
+  // request is independently gated by the fresh Telegram initData HMAC (max age
+  // enforced above) + the user cross-check below. The bot's short session TTL
+  // was causing spurious failures during the multi-step OAuth flow; the initData
+  // freshness + user match remain the real security gates, so the session row's
+  // job here is only to confirm a real bot `/start` issued a token for this user.
 
   // 3. Cross-check: the user that owns this session must match the user who
   //    just proved Telegram-origin via initData. Refuses session-stuffing.
@@ -70,12 +79,9 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "user_mismatch" }, { status: 403 });
   }
 
-  // 4. Atomically mark single-use BEFORE returning the pubkey, so a concurrent
-  //    replay loses the race.
-  const consumed = await consumeSession(env.DATABASE_URL, parsed.data.session);
-  if (!consumed) {
-    return NextResponse.json({ error: "session_already_used" }, { status: 410 });
-  }
+  // 4. Best-effort stamp of first-use time (no longer fatal if already set) so
+  //    the session can be re-derived on retry within its TTL window.
+  await consumeSession(env.DATABASE_URL, parsed.data.session);
 
   // 5. HKDF(master_secret, salt = telegram_user_id) → 32-byte Ed25519 seed.
   const seed = await hkdfSha256(

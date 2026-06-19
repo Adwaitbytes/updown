@@ -185,8 +185,24 @@ export default function RevokePage(): React.ReactElement {
   );
 }
 
+// See onboard/page.tsx: NEXT_PUBLIC_* is only inlined for STATIC
+// process.env.FOO access, never dynamic process.env[key]. Use a static map.
+const PUBLIC_ENV: Record<string, string | undefined> = {
+  NEXT_PUBLIC_ENOKI_PUBLIC_KEY: process.env.NEXT_PUBLIC_ENOKI_PUBLIC_KEY,
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+  NEXT_PUBLIC_SUI_NETWORK: process.env.NEXT_PUBLIC_SUI_NETWORK,
+  NEXT_PUBLIC_SUI_RPC_URL: process.env.NEXT_PUBLIC_SUI_RPC_URL,
+  NEXT_PUBLIC_PREDICT_PACKAGE_ID: process.env.NEXT_PUBLIC_PREDICT_PACKAGE_ID,
+  NEXT_PUBLIC_PREDICT_OBJ_ID: process.env.NEXT_PUBLIC_PREDICT_OBJ_ID,
+  NEXT_PUBLIC_DUSDC_TYPE: process.env.NEXT_PUBLIC_DUSDC_TYPE,
+  NEXT_PUBLIC_DUSDC_TREASURY_CAP_ID:
+    process.env.NEXT_PUBLIC_DUSDC_TREASURY_CAP_ID,
+  NEXT_PUBLIC_UPDOWN_PACKAGE_ID: process.env.NEXT_PUBLIC_UPDOWN_PACKAGE_ID,
+  NEXT_PUBLIC_BOT_WEBHOOK_URL: process.env.NEXT_PUBLIC_BOT_WEBHOOK_URL,
+};
+
 function requireEnv(key: string): string {
-  const v = process.env[key];
+  const v = PUBLIC_ENV[key];
   if (!v) throw new Error(`Missing env: ${key}`);
   return v;
 }

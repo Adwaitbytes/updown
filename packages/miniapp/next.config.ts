@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Appends ?dpl=<id> to every static asset URL so a new deploy busts
+  // client/CDN caches even when Turbopack reuses chunk filenames.
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID || "v20260619-11-register",
   experimental: {
     optimizePackageImports: ["@mysten/sui", "@mysten/enoki"],
   },
